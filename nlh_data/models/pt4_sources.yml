@@ -1,0 +1,46 @@
+version: 2
+
+sources:
+  - name: pt4
+    database: PT4 DB
+    schema: public
+    tables:
+      - name: cash_hand_summary
+      - name: cash_custom_cache
+      - name: tourney_custom_cache
+      - name: cash_hand_player_statistics
+      - name: cash_hand_player_combinations
+      - name: cash_hand_histories
+      - name: cash_limit
+      - name: cash_table
+      - name: cash_table_session_summary
+      - name: tourney_hand_summary
+      - name: tourney_hand_player_combinations
+      - name: tourney_hand_player_statistics
+      - name: tourney_blinds
+      - name: tourney_summary
+      - name: tourney_results
+      - name: tourney_table
+      - name: tourney_hand_histories
+      - name: tourney_table_type
+      - name: lookup_tourney_type
+      - name: lookup_hand_groups
+      - name: lookup_hand_ranks
+      - name: lookup_hole_cards
+      - name: lookup_suits_omaha
+      - name: lookup_positions
+      - name: lookup_sites
+      - name: lookup_actions
+      - name: lookup_tags
+      - name: tags
+      - name: notes
+      - name: notes_auto
+      - name: player
+      - name: settings
+      - name: cash_cache
+      - name: tourney_cache
+      - name: live_cash_table
+      - name: live_cash_player
+      - name: live_tourney_table
+      - name: live_tourney_player
+    

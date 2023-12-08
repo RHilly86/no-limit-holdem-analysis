@@ -1,0 +1,254 @@
+---
+title: "Hero Analysis"
+format: html
+---
+
+## Things I want to look into for $0.50 NL (6 max)
+
+### Preflop
+* Overall stats (VPIP, PFR, 3bet %, fold to steal, etc)
+  * Probably want to break this out by position too
+
+* Calling ranges (SRP and 3bet+ pots)
+  * Initially, I want to look at what I'm calling overall but will need to break it out by position to get a better understanding of my leaks.
+
+* Pots >= 10bb. Want to understand what mistakes I'm making but this obviously will bleed into postflop play.
+
+### Flop
+* Overall stats (Call %, fold %, cbet %, AF, X/R %, etc).
+  * These stats will also apply to turn and river spots. I haven't looked at this too in depth but I think there are many spots where I choose a passive line instead of an aggressive line (especially in cases where I have a hand that likely won't win at showdown).
+  
+* Bet sizes. I think I have this somewhat down but curious to see where I'm betting too large or too small.
+
+* Spots where I'm calling with too little equity. I don't know the best way at identifying these (maybe look at biggest losses first and then look at wins where I was lucky?). I'd think in these spots we'd want to raise more since we know that it's unlikely our hand would win at showdown.
+
+### Turn
+* Same stuff as what's listed in Flop.
+
+### River
+* Same stuff as what's listed in Flop.
+
+
+```{r}
+library(DBI)
+library(dplyr)
+library(ggplot2)
+library(purrr)
+library(stringr)
+library(skimr)
+library(patchwork)
+
+source("DB_utils.R")
+source("helpers.R")
+source("plotting_utils.R")
+```
+
+```{r}
+cash_table_names = list_tables(schema = "cash")
+lookup_table_names = list_tables(schema = "lookup")
+cash_cache_names = c("cash_cache", "cash_custom_cache")
+
+
+cash_cache_tables = set_names(
+  map(cash_cache_names, \(name) read_table(schema = "public", table_name = name)),
+  cash_cache_names
+)
+
+cash_tables = set_names(
+  map(cash_table_names, \(name) read_table(schema = "cash", table_name = name)),
+  cash_table_names
+)
+
+lookup_tables = set_names(
+  map(lookup_table_names, \(name) read_table(schema = "lookup", table_name = name)),
+  lookup_table_names
+)
+
+poker_hands = readr::read_rds("poker_hands.rds")
+```
+
+```{r}
+cash_tables$hand_player_statistics |>
+  filter(
+    is_hero,
+    
+  )
+```
+
+```{r}
+hero_hand_player_stats = cash_tables$hand_player_statistics |>
+  filter(
+    is_hero,
+    !limit_name %in% c("$0.10 NL (6 max)", "$0.30 NL (6 max)")
+  ) |> 
+  left_join(cash_tables$hand_history, by = "hand_id")
+```
+
+```{r}
+overall_preflop_stats = hero_hand_player_stats |> 
+  filter(limit_name == "$0.50 NL (6 max)") |>
+  summarize(
+    vpip_pct = round(mean(did_vpip_preflop), 3) * 100,
+    opening_pct_preflop = round(mean(did_open_preflop[had_opp_to_open_preflop]), 3) * 100,
+    pct_3bet_preflop = round(mean(did_3bet_preflop[had_opp_to_3bet_preflop]), 3) * 100,
+    pct_4bet_preflop = round(mean(did_4bet_preflop[had_opp_to_4bet_preflop]), 3) * 100,
+    squeeze_pct_preflop = round(mean(did_squeeze_preflop[had_opp_to_squeeze_preflop]), 3) * 100,
+    fold_pct_preflop = round(mean(did_fold_preflop), 3) * 100,
+    pfr = round(mean(num_raises_preflop), 3) * 100,
+    calling_pct_preflop = round(mean(num_calls_preflop), 3) * 100,
+    rfi = round(mean(did_raise_first_preflop), 3) * 100,
+    faced_raise_pct_preflop = round(mean(did_face_raise_preflop), 3) * 100,
+    faced_3bet_pct_preflop = round(mean(did_face_3bet_preflop), 3) * 100,
+    faced_4bet_pct_preflop = round(mean(did_face_3bet_preflop), 3) * 100,
+    faced_squeeze_pct_preflop = round(mean(did_face_squeeze_preflop), 3) * 100,
+    called_3bet_pct_preflop = round(mean(action_3bet_preflop[did_face_3bet_preflop] == "C"), 3) * 100,
+    folded_to_3bet_pct_preflop = round(mean(action_3bet_preflop[did_face_3bet_preflop] == "F"), 3) * 100
+  )
+overall_preflop_stats
+```
+
+## SRP Calling Ranges
+
+```{r}
+single_raise_pots = function(hands, stake) {
+  pots = hands |> 
+    filter(
+      limit_name == stake,
+      did_vpip_preflop,
+      !did_face_3bet_preflop,
+      !did_3bet_preflop,
+      !did_face_4bet_preflop,
+      !did_4bet_preflop
+    )
+  return(pots)
+}
+
+three_bet_pots = function(hands, stake) {
+  pots = hands |> 
+    filter(
+      limit_name == stake,
+      did_vpip_preflop,
+      (action_3bet_preflop == "C" | did_3bet_preflop),
+      !did_face_4bet_preflop,
+      !did_4bet_preflop
+    )
+  return(pots)
+}
+
+holecard_distribution = function(hands, position_name) {
+  holecards = hands |> 
+    filter(position_name == position_name, action_preflop %in% c("C", "R")) |> 
+    count(holecard, action_preflop)
+  return(holecards)
+}
+```
+
+```{r}
+plot_range = function(hands, position_name) {
+  holecards = holecard_distribution(hands, position_name)
+  hand_matrix = readr::read_rds("poker_hands.rds")
+  
+  hand_matrix |> 
+    left_join(holecards, by = c("hand" = "holecard")) |> 
+    filter(!is.na(action_preflop)) |> 
+    ggplot(aes(x = forcats::fct_rev(card_1), y = card_2, fill = n)) +
+    geom_tile() +
+    scale_fill_distiller(palette = "BrBG") +
+    facet_wrap(~action_preflop, ncol = 2)
+}
+```
+
+```{r}
+bu_hand_dist = holecard_distribution(srp_pots, "BU")
+bu_hand_dist = left_join(bu_hand_dist, poker_hands, by = c("holecard" = "hand"))
+```
+
+```{r}
+bu_hand_dist = left_join(poker_hands, bu_hand_dist, by = c("hand" = "holecard")) |> filter(!is.na(action_preflop))
+```
+
+```{r, fig.width = 10, fig.height = 5}
+ggplot() +
+  geom_tile(data = bu_hand_dist, aes(x = forcats::fct_rev(card_1), y = card_2, fill = n), color = "grey50") +
+  geom_text(data = poker_hands, aes(x = forcats::fct_rev(card_1), y = card_2, label = hand)) +
+  facet_wrap(~action_preflop) +
+  theme_minimal() +
+  scale_fill_distiller(palette = "PuBu", direction = 1) +
+  labs(
+    x = NULL,
+    y = NULL,
+    fill = "# of hands"
+  ) +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid.major = element_blank())
+
+```
+
+```{r}
+plot_range(srp_pots, "BU")
+```
+
+
+
+
+```{r}
+srp_pots = single_raise_pots(hero_hand_player_stats, stake = "$0.50 NL (6 max)")
+
+srp_pots_holecard_dist = srp_pots |> 
+  count(holecard, position_name, action_preflop) |>
+  group_by(position_name, action_preflop) |> 
+  mutate(pct_of_hands = n / sum(n)) |> 
+  ungroup()
+
+poker_hands |> 
+  left_join(srp_pots_holecard_dist |> filter(position_name == "BB", action_preflop == "C"), by = c("hand" = "holecard")) |> 
+  ggplot(aes(x = forcats::fct_rev(card_1), y = card_2, fill = n)) +
+  geom_tile() +
+  scale_fill_distiller(palette = "BrBG") +
+  geom_text(aes(label = hand))
+```
+
+
+
+
+
+
+
+```{r}
+called_3bet_hands_preflop = hero_hand_player_stats |> 
+  filter(
+    limit_name == "$0.50 NL (6 max)",
+    action_3bet_preflop == "C"
+  )
+
+amt_won_3bet_calls = sum(called_3bet_hands_preflop$amt_won)
+```
+
+```{r}
+called_3bet_hand_histories = set_names(
+  map(called_3bet_hands_preflop$hand_id, \(hand) pull(filter(called_3bet_hands_preflop, hand_id == hand), hand_history)),
+  glue::glue("Hand no. {called_3bet_hands_preflop$hand_id}")
+)
+```
+
+```{r}
+called_3bet_hands_dist = called_3bet_hands_preflop |>
+  count(holecard) |> 
+  mutate(pct_of_hands = n / sum(n))
+
+poker_hands |> 
+  left_join(called_3bet_hands_dist, by = c("hand" = "holecard")) |> 
+  ggplot(aes(x = forcats::fct_rev(card_1), y = card_2, fill = n)) +
+  geom_tile() +
+  geom_text(aes(label = hand)) +
+  scale_fill_distiller(palette = "BrBG")
+```
+
+
+```{r}
+called_3bet_hands_preflop |> 
+  filter(amt_won > 0) |> 
+  select(amt_won, amt_expected_won) |> 
+  View()
+```
