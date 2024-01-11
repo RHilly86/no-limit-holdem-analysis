@@ -24,6 +24,14 @@ select
   chps.cnt_f_call as num_calls_flop,
   chps.flg_f_check as did_check_flop,
   chps.flg_f_check_raise as did_check_raise_flop,
+  case
+    when chps.flg_f_check and (chps.cnt_f_raise > 0 or
+                               chps.cnt_f_call > 0 or
+                               chps.flg_f_fold)
+    then true
+    else false
+  end as had_opp_to_check_raise_flop,
+                
   chps.flg_f_fold as did_fold_flop,
   chps.flg_f_saw as did_see_flop,
   
@@ -33,6 +41,13 @@ select
   chps.cnt_t_call as num_calls_turn,
   chps.flg_t_check as did_check_turn,
   chps.flg_t_check_raise as did_check_raise_turn,
+  case
+    when chps.flg_t_check and (chps.cnt_t_raise > 0 or
+                               chps.cnt_t_call > 0 or
+                               chps.flg_t_fold)
+    then true
+    else false
+  end as had_opp_to_check_raise_turn,
   chps.flg_t_fold as did_fold_turn,
   chps.flg_t_saw as did_see_turn,
   
@@ -42,6 +57,13 @@ select
   chps.cnt_r_call as num_calls_river,
   chps.flg_r_check as did_check_river,
   chps.flg_r_check_raise as did_check_raise_river,
+  case 
+    when chps.flg_r_check and (chps.cnt_r_raise > 0 or
+                               chps.cnt_r_call > 0 or
+                               chps.flg_r_fold)
+    then true
+    else false
+  end as had_opp_to_check_raise_river,
   chps.flg_r_fold as did_fold_river,
   chps.flg_r_saw as did_see_river,
   
@@ -251,7 +273,18 @@ select
   ha_flop.action as action_flop,
   ha_turn.action as action_turn,
   ha_river.action as action_river,
-  psmc.position as position_name
+  psmc.position as position_name,
+  hs.pot_type,
+  hs.card_1_id,
+  hs.card_2_id,
+  hs.card_3_id,
+  hs.card_4_id,
+  hs.card_5_id,
+  card_1.card as card_1,
+  card_2.card as card_2,
+  card_3.card as card_3,
+  card_4.card as card_4,
+  card_5.card as card_5
 from {{ source("pt4", "cash_hand_player_statistics") }} as chps
 inner join {{ ref("pokerstars_players") }} as psp
   on chps.id_player = psp.player_id
@@ -271,7 +304,18 @@ left join {{ ref("hand_actions") }} as ha_river
   on chps.id_action_r = ha_river.action_id
 left join {{ ref("positions_six_max_cash") }} as psmc
   on chps.position = psmc.position_id
-  
+left join {{ ref("hand_summary") }} as hs
+  on chps.id_hand = hs.hand_id
+left join lookup.cards as card_1
+  on hs.card_1_id = card_1.card_id
+left join lookup.cards as card_2
+  on hs.card_2_id = card_2.card_id
+left join lookup.cards as card_3
+  on hs.card_3_id = card_3.card_id
+left join lookup.cards as card_4
+  on hs.card_4_id = card_4.card_id
+left join lookup.cards as card_5
+  on hs.card_5_id = card_5.card_id
   
   
   

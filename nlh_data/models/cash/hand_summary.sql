@@ -41,7 +41,17 @@ select
   cts.table_name,
   psp.player_name as winner_name,
   hr.hand_rank as winning_hand_rank,
-  hr.hand_details as winning_hand_details
+  hr.hand_details as winning_hand_details,
+  case
+    when length(chs.str_aggressors_p) = 1
+      then 'LP' -- This stands for "Limped Pot"
+    when length(chs.str_aggressors_p) = 2
+      then '2BP'
+    when length(chs.str_aggressors_p) = 3
+      then '3BP'
+    when length(chs.str_aggressors_p) = 4
+      then '4BP'
+  end as pot_type
 from {{ source("pt4", "cash_hand_summary") }} as chs
 left join {{ ref("cash_limits") }} as cl
   on chs.id_limit = cl.limit_id
