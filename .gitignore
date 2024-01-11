@@ -27,6 +27,6 @@ Manifest.toml
 .Renviron
 .DS_Store
 .Rhistory
-.ini
 __pycache__
+*.ini
 

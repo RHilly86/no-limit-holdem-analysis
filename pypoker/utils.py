@@ -32,43 +32,6 @@ def create_hand_matrix() -> pl.DataFrame:
     return hand_matrix
 
 
-def single_raise_pots(hands: pl.DataFrame, stake: str) -> pl.DataFrame:
-    """
-    Return all hands that were single raised pots.
-    """
-    
-    pots = (
-        hands
-        .filter(
-            (col("limit_name") == stake) &
-            (col("did_vpip_preflop")) &
-            ~(col("did_face_3bet_preflop")) &
-            ~(col("did_3bet_preflop")) &
-            ~(col("did_face_4bet_preflop")) &
-            ~(col("did_4bet_preflop")) 
-        )
-    )
-    return pots
-
-
-def three_bet_pots(hands: pl.DataFrame, stake: str) -> pl.DataFrame:
-    """
-    Return all hands that were three bet pots.
-    """
-    
-    pots = (
-        hands
-        .filter(
-            (col("limit_name") == stake) &
-            (col("did_vpip_preflop")) &
-            ((col("action_3bet_preflop") == "C") | (col("did_3bet_preflop"))) &
-            ~(col("did_face_4bet_preflop")) &
-            ~(col("did_4bet_preflop"))
-        )
-    )
-    return pots
-
-
 def holecard_dist(hands: pl.DataFrame, position_name: str) -> pl.DataFrame:
     """
     Return the distribution of hole cards for a given position.
@@ -93,3 +56,16 @@ def holecard_dist(hands: pl.DataFrame, position_name: str) -> pl.DataFrame:
         .agg(pl.count().alias("n"))
     )
     return holecards
+
+
+def print_hand_history(hands: pl.DataFrame, hand_id: int) -> None:
+    """
+    Print the hand history for a given hand id.
+    """
+    hand_history = (
+        hands
+        .filter(col("hand_id") == hand_id)
+        ["hand_history"].to_list()[0]
+    )
+    print(hand_history)
+    
